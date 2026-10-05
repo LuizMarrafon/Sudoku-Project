@@ -104,6 +104,12 @@ def exibir_sudoku(sudoku):
         print()
 
 def validaSudoku(sudoku):
+    if not isinstance(sudoku, (list, tuple)) or len(sudoku) != 9:
+        return False
+    if any(not isinstance(linha, (list, tuple)) or len(linha) != 9 for linha in sudoku):
+        return False
+    if any(type(numero) is not int or not 0 <= numero <= 9 for linha in sudoku for numero in linha):
+        return False
     valido = True
     for i in range(9):
         for j in range(9):
@@ -115,3 +121,58 @@ def validaSudoku(sudoku):
                     valido = False
     return valido
 
+
+
+class BuscaCancelada(Exception):
+    """Interrupção solicitada pelo usuário; não significa ausência de solução."""
+
+
+def verificar_cancelamento(cancelar=None):
+    if cancelar is not None and cancelar():
+        raise BuscaCancelada()
+
+
+def validar_estado_inicial(sudoku, cancelar=None):
+    """Validação independente, sem histórico e sem alterar a entrada.
+
+    A prova de existência usa backtracking MRV interno. Não executa nenhuma
+    das buscas de demonstração e seu tempo é reportado separadamente.
+    """
+    import time
+    inicio = time.perf_counter()
+    verificar_cancelamento(cancelar)
+    if not validaSudoku(sudoku):
+        return {"valido": False, "solucionavel": False,
+                "tempo": time.perf_counter() - inicio,
+                "mensagem": "O estado inicial viola as regras do Sudoku."}
+    tabuleiro = [list(linha) for linha in sudoku]
+
+    def verificar():
+        verificar_cancelamento(cancelar)
+        melhor = None
+        for r in range(9):
+            for c in range(9):
+                if tabuleiro[r][c] == 0:
+                    usados = set(tabuleiro[r]) | {tabuleiro[i][c] for i in range(9)}
+                    usados |= {tabuleiro[i][j] for i in range(r//3*3, r//3*3+3)
+                               for j in range(c//3*3, c//3*3+3)}
+                    candidatos = sorted(set(range(1, 10)) - usados)
+                    if not candidatos:
+                        return False
+                    if melhor is None or len(candidatos) < len(melhor[2]):
+                        melhor = (r, c, candidatos)
+        if melhor is None:
+            return True
+        r, c, candidatos = melhor
+        for numero in candidatos:
+            tabuleiro[r][c] = numero
+            if verificar():
+                return True
+        tabuleiro[r][c] = 0
+        return False
+
+    solucionavel = verificar()
+    return {"valido": True, "solucionavel": solucionavel,
+            "tempo": time.perf_counter() - inicio,
+            "mensagem": "Estado válido e solucionável." if solucionavel else
+                        "O Sudoku não possui solução. A busca de demonstração não foi iniciada."}
