@@ -1,128 +1,108 @@
 import copy
 import time
+from pilha import Pilha
+from no_pilha import NoPilha
 from sudoku import validaNumero, validaSudoku, verificar_cancelamento
 
-def criar_matriz_fixos(sudoku):
-    fixos = []
-    for i in range(9):
-        linha = []
-        for j in range(9):
-            if sudoku[i][j] == 0:
-                linha.append(False)
-            else:
-                linha.append(True)
-        fixos.append(linha)
-    return fixos
 
+# Busca por profundidade sem heurística: usa a ordem das células e uma pilha LIFO.
+# LIFO significa que o último nó empilhado é o primeiro a ser retirado.
 def resolver_dfs(sudoku, registrar_passos=False, cancelar=None):
+    # O cronômetro começa antes de preparar a pilha. O histórico, se solicitado, também tem custo.
     inicio = time.perf_counter()
     verificar_cancelamento(cancelar)
+    # Confere as regras das pistas; a prova de existência de solução é feita antes pelo fluxo da interface.
     if not validaSudoku(sudoku):
         raise ValueError("Estado inicial inválido.")
-    entrada = sudoku
-    sudoku = copy.deepcopy(sudoku)
+
+    # A raiz é uma cópia da entrada. Cada nó guarda um tabuleiro independente,
+    # para que uma tentativa não altere os outros ramos nem a entrada durante o cálculo.
+    pilha = Pilha()
+    pilha.push(NoPilha(copy.deepcopy(sudoku)))
+    # A quantidade inicial de vazios será o comprimento do caminho final, se houver solução.
     vazios_iniciais = sum(linha.count(0) for linha in sudoku)
-    testes_candidatos = 0
-    fixos = criar_matriz_fixos(sudoku)
-    tentativas = [None] * 81
-    posicao = 0
     solucionado = False
-    sem_solucao = False
-    quantidade_tentativas = 0
-    nos_explorados = 1
-    passos = 0
+    solucao = None
+    # Avaliar um nó é retirá-lo da pilha; gerar um nó é criar e empilhar um filho.
+    # Podem sobrar filhos na pilha quando a solução é encontrada.
+    nos_explorados = 0
+    estados_gerados = 0
+    testes_candidatos = 0
     historico = []
-    while not solucionado and not sem_solucao:
+
+    # O laço termina pelo seu próprio teste: solução encontrada ou pilha sem alternativas.
+    while not pilha.isEmpty() and not solucionado:
         verificar_cancelamento(cancelar)
-        if posicao == 81:
-            solucionado = True
-        elif posicao < 0:
-            sem_solucao = True
-        else:
+        # Retira o próximo estado pela ordem da pilha, sem calcular H.
+        no = pilha.pop()
+        estado = no.tabuleiro
+        nos_explorados += 1
+
+        # Localiza a primeira célula vazia sem interromper o laço à força.
+        posicao = 0
+        encontrou_vazio = False
+        while posicao < 81 and not encontrou_vazio:
+            # A divisão inteira encontra a linha; o resto da divisão encontra a coluna.
+            # Assim, as posições 0 a 80 percorrem a matriz por linhas.
             linha = posicao // 9
             coluna = posicao % 9
-            if fixos[linha][coluna]:
-                posicao = posicao + 1
+            if estado[linha][coluna] == 0:
+                encontrou_vazio = True
             else:
-                if tentativas[posicao] is None:
-                    tentativas[posicao] = list(range(1, 10))
-                achouNumero = False
-                testes = []
-                while len(tentativas[posicao]) > 0 and not achouNumero:
-                    numero = tentativas[posicao].pop(0)
-                    testes_candidatos += 1
-                    if validaNumero(sudoku, linha, coluna, numero):
-                        quantidade_tentativas += 1
-                        testes.append({
-                            "numero": numero,
-                            "resultado": "Escolhido"
-                        })
-                        sudoku[linha][coluna] = numero
-                        achouNumero = True
-                        nos_explorados = nos_explorados + 1
-                        passos = passos + 1
-                        if registrar_passos:
-                            historico.append({
-                                "tabuleiro": copy.deepcopy(sudoku),
-                                "titulo": "Busca por profundidade",
-                                "descricao": "A busca por profundidade percorre as possibilidades em ordem e utiliza o primeiro número válido encontrado.\n\nCélula atual: L" + str(linha + 1) + " C" + str(coluna + 1) + "\nNúmero escolhido: " + str(numero),
-                                "linha": linha,
-                                "coluna": coluna,
-                                "tipo": "colocar",
-                                "opcoes": copy.deepcopy(testes)
-                            })
-                    else:
-                        testes.append({
-                            "numero": numero,
-                            "resultado": "Inválido"
-                        })
-                if achouNumero:
-                    posicao = posicao + 1
-                else:
-                    sudoku[linha][coluna] = 0
-                    tentativas[posicao] = None
-                    posicao = posicao - 1
-                    while posicao >= 0 and fixos[posicao // 9][posicao % 9]:
-                        posicao = posicao - 1
-                    if posicao >= 0:
-                        linhaAnterior = posicao // 9
-                        colunaAnterior = posicao % 9
-                        numeroRemovido = sudoku[linhaAnterior][colunaAnterior]
-                        sudoku[linhaAnterior][colunaAnterior] = 0
-                        passos = passos + 1
-                        if registrar_passos:
-                            historico.append({
-                                "tabuleiro": copy.deepcopy(sudoku),
-                                "titulo": "Busca por profundidade - Backtracking",
-                                "descricao": "Nenhuma possibilidade levou a uma solução.\n\nA busca por profundidade voltou para a célula anterior.\nNúmero removido: " + str(numeroRemovido) + "\nCélula: L" + str(linhaAnterior + 1) + " C" + str(colunaAnterior + 1),
-                                "linha": linhaAnterior,
-                                "coluna": colunaAnterior,
-                                "tipo": "remover",
-                                "opcoes": []
-                            })
-    if solucionado and registrar_passos:
-        historico.append({
-            "tabuleiro": copy.deepcopy(sudoku),
-            "titulo": "Busca por profundidade - Solução encontrada",
-            "descricao": "Todas as células foram preenchidas corretamente.\n\nA busca por profundidade encontrou uma solução.",
-            "linha": -1,
-            "coluna": -1,
-            "tipo": "solucao",
-            "opcoes": []
-        })
+                posicao += 1
+
+        # Sem zeros, o estado é objetivo: as pistas e cada preenchimento já respeitaram as regras.
+        if not encontrou_vazio:
+            solucionado = True
+            solucao = estado
+            # O histórico serve apenas para a interface e não muda a ordem de exploração.
+            if registrar_passos:
+                historico.append(dict(
+                    tabuleiro=copy.deepcopy(estado),
+                    titulo="Busca por profundidade - Solução encontrada",
+                    descricao="O estado retirado do topo da pilha está completo e válido.",
+                    linha=-1, coluna=-1, tipo="solucao", opcoes=[]))
+        else:
+            testes = []
+            # Empilha do 9 ao 1: o menor candidato fica no topo e sai primeiro.
+            for numero in range(9, 0, -1):
+                verificar_cancelamento(cancelar)
+                testes_candidatos += 1
+                # Um movimento permitido cria um filho. Legalidade local não garante solução futura.
+                valido = validaNumero(estado, linha, coluna, numero)
+                if valido:
+                    # Altera somente a célula vazia selecionada; as pistas já preenchidas são preservadas.
+                    filho = copy.deepcopy(estado)
+                    filho[linha][coluna] = numero
+                    pilha.push(NoPilha(filho))
+                    estados_gerados += 1
+                if registrar_passos:
+                    testes.append(dict(numero=numero,
+                                       resultado="Empilhado" if valido else "Inválido"))
+            if registrar_passos:
+                # Reorganiza a tabela para mostrar 1 a 9. Isso não modifica a ordem da pilha.
+                testes.reverse()
+                historico.append(dict(
+                    tabuleiro=copy.deepcopy(estado),
+                    titulo="Busca por profundidade - Expansão do nó",
+                    descricao=(f"Estado retirado do topo da pilha. Célula: L{linha+1} C{coluna+1}.\n"
+                               "Os números válidos são empilhados do 9 ao 1, para explorar o menor primeiro.\n"
+                               "Se nenhum número servir, a próxima iteração retira uma alternativa pendente.\n"
+                               "Cada quadro mostra um estado explorado; uma troca de ramo pode alterar várias células."),
+                    linha=linha, coluna=coluna, tipo="colocar", opcoes=testes))
+
+    # Só copia o resultado para a entrada quando encontra solução.
+    # Cancelamento ou ausência de solução deixam o tabuleiro recebido intacto.
     if solucionado:
         for i in range(9):
-            entrada[i][:] = sudoku[i]
-    tempo = time.perf_counter() - inicio
-    metricas = {
-        "solucionado": solucionado,
-        "tempo": tempo,
-        "tentativas": quantidade_tentativas,
-        "nos_explorados": nos_explorados,
-        "passos": vazios_iniciais if solucionado else None,
-        "operacoes": passos,
-        "testes_candidatos": testes_candidatos,
-        "estados_gerados": quantidade_tentativas,
-        "historico": historico
-    }
+            sudoku[i][:] = solucao[i]
+
+    # Tentativas conta filhos válidos; testes_candidatos inclui números rejeitados.
+    # Passos é o comprimento da solução, não a quantidade de quadros nem de nós visitados.
+    metricas = dict(
+        solucionado=solucionado, tempo=time.perf_counter() - inicio,
+        tentativas=estados_gerados, estados_gerados=estados_gerados,
+        nos_explorados=nos_explorados,
+        passos=vazios_iniciais if solucionado else None,
+        testes_candidatos=testes_candidatos, historico=historico)
     return metricas

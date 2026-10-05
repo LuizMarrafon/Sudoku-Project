@@ -1,5 +1,6 @@
 import random
 
+# Cria nove listas separadas. Cada zero significa uma célula ainda vazia.
 def criar_sudoku_vazio():
     sudoku = []
     for i in range(9):
@@ -9,6 +10,7 @@ def criar_sudoku_vazio():
         sudoku.append(linha)
     return sudoku
 
+# Entrada pelo terminal. A interface gráfica tem seu próprio preenchimento de células.
 def criar_sudoku_manual():
     sudoku = criar_sudoku_vazio()
     print("Digite os numeros do Sudoku (0 para vazio):")
@@ -21,14 +23,19 @@ def criar_sudoku_manual():
             sudoku[i][j] = num
     return sudoku
 
+# Testa um número contra linha, coluna e bloco. Ignora a própria posição,
+# permitindo conferir também uma pista que já está preenchida.
 def validaNumero(sudoku, linha, coluna, numero):
     flag = True
+    # Procura repetição na linha da célula.
     for i in range(9):
         if coluna != i and sudoku[linha][i] == numero:
             flag = False
+    # Procura repetição na coluna da célula.
     for i in range(9):
         if linha != i and sudoku[i][coluna] == numero:
             flag = False
+    # Subtrair o resto por 3 encontra o início do bloco: índice 0, 3 ou 6.
     box_linha = linha - linha % 3
     box_coluna = coluna - coluna % 3
     for i in range(box_linha, box_linha + 3):
@@ -37,6 +44,8 @@ def validaNumero(sudoku, linha, coluna, numero):
                 flag = False
     return flag
 
+# Primeiro constrói uma solução completa; depois remove valores para criar o desafio.
+# Este gerador é separado dos dois algoritmos comparados na interface.
 def criar_sudoku_aleatorio():
     sudoku = criar_sudoku_vazio()
     # guarda quais números ainda podem ser tentados em cada posição
@@ -48,6 +57,7 @@ def criar_sudoku_aleatorio():
         # se é a primeira vez que chegamos nessa posição
         if tentativas[posicao] is None:
             numeros = list(range(1, 10))
+            # Embaralhar a ordem das tentativas permite produzir tabuleiros diferentes.
             random.shuffle(numeros)
             tentativas[posicao] = numeros
         achouNumero = False
@@ -76,9 +86,12 @@ def criar_sudoku_aleatorio():
                 linhaAnterior = posicao // 9
                 colunaAnterior = posicao % 9
                 sudoku[linhaAnterior][colunaAnterior] = 0
+    # Apagar pistas de uma solução mantém pelo menos essa solução possível.
     retirar_numeros(sudoku)
     return sudoku
 
+# Remove de três a seis valores por bloco, em posições sorteadas.
+# Não verifica se a solução é única, apenas preserva a existência de uma solução.
 def retirar_numeros(sudoku):
     for box_linha in range(0, 9, 3):
         for box_coluna in range(0, 9, 3):
@@ -93,6 +106,7 @@ def retirar_numeros(sudoku):
                 sudoku[linha][coluna] = 0
     return sudoku
 
+# Impressão no terminal; os separadores facilitam enxergar os blocos 3 × 3.
 def exibir_sudoku(sudoku):
     for i in range(9):
         if i % 3 == 0 and i != 0:
@@ -103,11 +117,13 @@ def exibir_sudoku(sudoku):
             print(sudoku[i][j], end=" ")
         print()
 
+# Valida formato, tipos e regras das pistas. Isso sozinho não prova que existe solução.
 def validaSudoku(sudoku):
     if not isinstance(sudoku, (list, tuple)) or len(sudoku) != 9:
         return False
     if any(not isinstance(linha, (list, tuple)) or len(linha) != 9 for linha in sudoku):
         return False
+    # Exige inteiros de 0 a 9. type(... ) is int também rejeita booleanos como True.
     if any(type(numero) is not int or not 0 <= numero <= 9 for linha in sudoku for numero in linha):
         return False
     valido = True
@@ -116,6 +132,7 @@ def validaSudoku(sudoku):
             numero = sudoku[i][j]
             if numero < 0 or numero > 9:
                 valido = False
+            # Células vazias não são pistas; só números preenchidos precisam ser confrontados com os vizinhos.
             if numero != 0:
                 if not validaNumero(sudoku, i, j, numero):
                     valido = False
@@ -127,6 +144,8 @@ class BuscaCancelada(Exception):
     """Interrupção solicitada pelo usuário; não significa ausência de solução."""
 
 
+# cancelar é uma função opcional fornecida por quem chama.
+# A exceção sinaliza interrupção ao fluxo da interface, sem confundir com Sudoku insolúvel.
 def verificar_cancelamento(cancelar=None):
     if cancelar is not None and cancelar():
         raise BuscaCancelada()
@@ -145,32 +164,44 @@ def validar_estado_inicial(sudoku, cancelar=None):
         return {"valido": False, "solucionavel": False,
                 "tempo": time.perf_counter() - inicio,
                 "mensagem": "O estado inicial viola as regras do Sudoku."}
+    # A verificação trabalha numa cópia e não entrega sua solução aos algoritmos comparados.
     tabuleiro = [list(linha) for linha in sudoku]
 
+    # Verificação interna recursiva de existência de solução, sem animação.
+    # É independente da DFS com pilha usada na demonstração.
     def verificar():
         verificar_cancelamento(cancelar)
         melhor = None
         for r in range(9):
             for c in range(9):
                 if tabuleiro[r][c] == 0:
+                    # Conjuntos eliminam repetições. O operador | une os números da linha, coluna e bloco.
                     usados = set(tabuleiro[r]) | {tabuleiro[i][c] for i in range(9)}
                     usados |= {tabuleiro[i][j] for i in range(r//3*3, r//3*3+3)
                                for j in range(c//3*3, c//3*3+3)}
+                    # Os candidatos são os números de 1 a 9 menos os já usados nas três restrições.
                     candidatos = sorted(set(range(1, 10)) - usados)
+                    # Uma célula sem candidato torna este ramo impossível.
                     if not candidatos:
                         return False
+                    # Guarda a célula mais restrita para diminuir as alternativas da validação.
                     if melhor is None or len(candidatos) < len(melhor[2]):
                         melhor = (r, c, candidatos)
+        # Não encontrou célula vazia: a cópia está resolvida.
         if melhor is None:
             return True
         r, c, candidatos = melhor
+        # Tenta uma atribuição e verifica o restante do tabuleiro recursivamente.
+        # Nesta validação interna, encontrar uma solução já basta para confirmar sua existência.
         for numero in candidatos:
             tabuleiro[r][c] = numero
             if verificar():
                 return True
+        # Se nenhuma alternativa funcionou, desfaz esta atribuição antes de retornar ao nível anterior.
         tabuleiro[r][c] = 0
         return False
 
+    # O tempo desta validação é devolvido separadamente do tempo das buscas comparadas.
     solucionavel = verificar()
     return {"valido": True, "solucionavel": solucionavel,
             "tempo": time.perf_counter() - inicio,

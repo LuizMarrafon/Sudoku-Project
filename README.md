@@ -1,6 +1,6 @@
 # Sudoku Project
 
-Sistema de resolução de Sudoku com DFS (busca cega) e Best First gulosa com MRV (busca heurística), interface PySide6, validação prévia e comparação de desempenho.
+Sistema de resolução de Sudoku com busca por profundidade com pilha e Best First gulosa com MRV (busca heurística), interface PySide6, validação prévia e comparação de desempenho.
 
 ## Instalação no Windows
 
@@ -28,7 +28,7 @@ Se o ambiente `.venv` já estiver configurado, basta executar o último comando.
 
 O estado é uma matriz 9 × 9 de inteiros, com 0 para vazio. Uma ação atribui um candidato permitido a uma célula vazia. A transição preserva as demais posições. O objetivo é uma matriz completa válida; as pistas iniciais não são alteradas.
 
-- **DFS:** ordem fixa de linhas e colunas; valores de 1 a 9 em ordem crescente; backtracking quando as alternativas acabam. Não usa heurística.
+- **Busca por profundidade:** pilha encadeada com push, pop e isEmpty. Cada NoPilha guarda apenas o tabuleiro e a ligação para o próximo nó. Expande a primeira célula vazia e empilha candidatos do 9 ao 1 para explorar o menor primeiro. Ao esgotar um ramo, retira a próxima alternativa pendente. Não usa heurística.
 - **Best First:** fila de prioridade global (`heapq`), menor h primeiro, empate pela ordem de inserção. MRV escolhe a célula com menos candidatos; empate pela ordem de linhas e colunas. Todos os candidatos da célula escolhida geram filhos.
 - **Heurística:** `h = 10 * vazios + soma_dos_tamanhos_dos_dominios`. Se uma célula vazia não tiver candidatos, `h = 100000 + vazios`. Esses estados ficam penalizados e não produzem filhos ao serem avaliados. É busca gulosa, não A*: não soma custo acumulado g.
 - **Validação prévia:** backtracking MRV independente, silencioso e sem histórico, para provar existência de solução. Verificar solucionabilidade pode exigir uma busca interna; o que é impedido para entradas insolúveis é iniciar as buscas de demonstração/comparação. Essa distinção evita afirmar que a existência de solução é decidida apenas conferindo repetições.
@@ -50,7 +50,6 @@ Os **quadros** da animação e as operações totais da DFS não são os passos 
 ## Testes e medições
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest -v test_sudoku
 .\.venv\Scripts\python.exe benchmark.py --saida resultados.json
 ```
 
@@ -60,9 +59,10 @@ Os testes verificam soluções/pistas, métricas, entradas inválidas, insolubil
 
 - `sudoku.py`: regras, geração e validação independente.
 - `dfs.py` e `heuristica.py`: buscas.
+- `pilha.py`: Pilha usada pela busca por profundidade.
+- `no_pilha.py`: nó com tabuleiro e ligação para o próximo.
 - `execucao.py`: fluxo compartilhado de validação e execução.
 - `interface.py` e `main.py`: interface, execução em segundo plano e inicialização.
-- `test_sudoku.py` e `benchmark.py`: regressões e comparação reproduzível.
 - `relatorio.html`: relatório para impressão ou salvamento como PDF pelo navegador.
 
 O gerador garante pelo menos uma solução, sem garantir unicidade. Não há limite arbitrário de nós ou tempo: casos difíceis podem consumir bastante memória/tempo, especialmente com histórico; use Cancelar cálculo quando necessário. Unicidade não é exigida no enunciado.

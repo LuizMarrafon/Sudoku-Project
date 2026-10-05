@@ -155,7 +155,7 @@ class InterfaceSudoku(QWidget):
                 bloco.setLayout(layout_bloco)
                 layout_sudoku.addWidget(bloco, bloco_linha, bloco_coluna)
         lado_esquerdo.addLayout(layout_sudoku)
-        legenda = QLabel("Cinza = inicial | Verde = avanço | Vermelho = backtracking/escolhida | Azul = célula escolhida")
+        legenda = QLabel("Cinza = inicial | Verde = avanço | Vermelho = inválido/próximo | Azul = célula escolhida")
         legenda.setAlignment(Qt.AlignmentFlag.AlignCenter)
         legenda.setWordWrap(True)
         lado_esquerdo.addWidget(legenda)
@@ -510,7 +510,7 @@ class InterfaceSudoku(QWidget):
             item_resultado = QTableWidgetItem(resultado)
             item_linha = QTableWidgetItem(str(passo["linha"] + 1))
             item_coluna = QTableWidgetItem(str(passo["coluna"] + 1))
-            if resultado == "Escolhido":
+            if resultado in ("Escolhido", "Empilhado"):
                 cor = QColor("#a8e6a3")
             else:
                 cor = QColor("#ffcccc")
